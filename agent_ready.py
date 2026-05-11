@@ -1,7 +1,6 @@
 """
 Urbanista Monday Brief — Agent
-Images fetched directly from source articles via web search.
-No external image API needed.
+Images fetched from Pexels API by keyword per news item.
 """
 
 import os, sys, json, datetime, re, requests, anthropic
@@ -24,16 +23,13 @@ Distribution: 90+ countries, ~30,000 retail locations globally.
 Key markets: North America, Europe (Nordics, DE, FR, UK), Australia, New Zealand.
 
 Strategic priorities:
-- Premiumisation: moving mix toward Signature tier, reducing Action retail exposure
+- Premiumisation: moving mix toward Signature tier
 - Brand building: Scandinavian design heritage, urban lifestyle positioning
-- Market expansion: strengthening DE, FR, UK, AU/NZ
-- Compliance: active in EU, US, CA, AU/NZ
+- Market expansion: DE, FR, UK, AU/NZ
+- Compliance: EU, US, CA, AU/NZ
 
-Key competitive threats: Sony, Bose (premium), Nothing, Sudio (brand/design),
-Soundcore/JLab (price), Marshall (lifestyle/heritage).
-
-Key opportunities: travel retail, DTC editorial content, Nordic premium brand story,
-Harman EU shelf opening, premium gifting occasions.
+Key competitive threats: Sony, Bose, Nothing, Sudio, Soundcore, JLab, Marshall.
+Key opportunities: travel retail, DTC editorial content, Nordic premium story, Harman EU shelf opening.
 """
 
 def get_date_context():
@@ -46,7 +42,7 @@ def get_date_context():
         "year": str(now.year)
     }
 
-ITEM_TEMPLATE = '{"tag":"region","headline":"news headline","body":"2 sentences.","date":"May 5, 2026","url":"https://article-url.com","source":"Publisher","image_url":"https://image-from-article.com/image.jpg"}'
+ITEM_TEMPLATE = '{"tag":"region","headline":"news headline","body":"2 sentences.","date":"May 5, 2026","url":"https://article-url.com","source":"Publisher","image_query":"3 word image search"}'
 
 def make_sections(d):
     items_template = ",".join([ITEM_TEMPLATE] * 5)
@@ -57,37 +53,56 @@ def make_sections(d):
             "key": "market",
             "label": "Market Update",
             "emoji": "🌍",
-            "prompt": f'Today is {d["today"]}. Search for news published in the past 7 days (after {d["week_start"]}) about the consumer audio market — headphones, earphones, Bluetooth speakers — in North America, Europe, UK, Australia and New Zealand. Search for: "headphone market {d["month"]}", "audio sales {d["month"]}", "consumer electronics news {d["month"]}". Find 5 actual recent news stories. For each story, also fetch the article page and extract the main Open Graph image URL (og:image meta tag) from the article. Include the publication date. Return ONLY this JSON with no other text:\n{base}'
+            "prompt": f'Today is {d["today"]}. Search for news published in the past 7 days (after {d["week_start"]}) about the consumer audio market — headphones, earphones, Bluetooth speakers — in North America, Europe, UK, Australia and New Zealand. Find 5 actual recent news stories. For each item, include a short 2-3 word "image_query" that describes a good stock photo to illustrate the story (e.g. "wireless headphones retail" or "audio market europe"). Return ONLY this JSON with no other text:\n{base}'
         },
         {
             "key": "product",
             "label": "Product News",
             "emoji": "🎯",
-            "prompt": f'Today is {d["today"]}. Search for news published in the past 7 days (after {d["week_start"]}) about these audio brands: Nothing, JLab, JBL, Soundcore, Marshall, Sudio. Search for: "Nothing audio {d["month"]}", "JBL {d["month"]}", "Soundcore {d["month"]}", "Marshall {d["month"]}", "Sudio {d["month"]}". Find 5 actual recent news stories. For each story, fetch the article page and extract the main Open Graph image URL (og:image meta tag). Include the publication date. Return ONLY this JSON with no other text:\n{base}'
+            "prompt": f'Today is {d["today"]}. Search for news published in the past 7 days (after {d["week_start"]}) about these audio brands: Nothing, JLab, JBL, Soundcore, Marshall, Sudio. Find 5 actual recent news stories. For each item, include a short 2-3 word "image_query" describing a good stock photo (e.g. "wireless earbuds product" or "headphones lifestyle"). Return ONLY this JSON with no other text:\n{base}'
         },
         {
             "key": "retail",
             "label": "Retail",
             "emoji": "🏪",
-            "prompt": f'Today is {d["today"]}. Search for news published in the past 7 days (after {d["week_start"]}) about consumer electronics retail — Best Buy, MediaMarkt, Currys, Amazon audio, DTC ecommerce, airport retail. Search for: "Best Buy {d["month"]}", "Amazon electronics {d["month"]}", "retail consumer electronics {d["month"]}". Find 5 actual recent news stories. For each, fetch the article and extract the og:image URL. Include publication date. Return ONLY this JSON with no other text:\n{base}'
+            "prompt": f'Today is {d["today"]}. Search for news published in the past 7 days (after {d["week_start"]}) about consumer electronics retail — Best Buy, MediaMarkt, Currys, Amazon audio, DTC ecommerce, airport retail. Find 5 actual recent news stories. For each, include a 2-3 word "image_query" for a stock photo (e.g. "electronics retail store" or "airport shopping"). Return ONLY this JSON with no other text:\n{base}'
         },
         {
             "key": "compliance",
             "label": "Compliance",
             "emoji": "⚖️",
-            "prompt": f'Today is {d["today"]}. Search for regulatory and compliance news published in the past 7 days (after {d["week_start"]}) affecting consumer electronics in EU, US, UK, Canada, Australia. Search for: "FCC {d["month"]}", "EU electronics regulation {d["month"]}", "consumer electronics compliance {d["month"]}", "battery regulation {d["month"]}". Find 5 actual recent regulatory updates. For each, fetch the page and extract the og:image URL. Include publication date. Return ONLY this JSON with no other text:\n{base}'
+            "prompt": f'Today is {d["today"]}. Search for regulatory and compliance news published in the past 7 days (after {d["week_start"]}) affecting consumer electronics in EU, US, UK, Canada, Australia. Find 5 actual recent regulatory updates. For each, include a 2-3 word "image_query" for a stock photo (e.g. "regulation document signing" or "EU compliance"). Return ONLY this JSON with no other text:\n{base}'
         },
         {
             "key": "ai",
             "label": "AI Tips & Tricks",
             "emoji": "✦",
-            "prompt": f'Today is {d["today"]}. Search for AI news and tips published in the past 7 days (after {d["week_start"]}) relevant to small businesses and product companies. Search for: "AI small business {d["month"]}", "Claude {d["month"]}", "ChatGPT productivity {d["month"]}", "AI tools {d["month"]}". Find 5 actionable recent AI tips. For each, fetch the article and extract the og:image URL. Include publication date. Return ONLY this JSON with no other text:\n{base}'
+            "prompt": f'Today is {d["today"]}. Search for AI news and tips published in the past 7 days (after {d["week_start"]}) relevant to small businesses and product companies. Find 5 actionable recent AI tips. For each, include a 2-3 word "image_query" for a stock photo (e.g. "AI productivity office" or "team collaboration technology"). Return ONLY this JSON with no other text:\n{base}'
         }
     ]
 
 
+def fetch_pexels_image(query, pexels_key, orientation="landscape"):
+    """Fetch a single image URL from Pexels for a given query."""
+    try:
+        r = requests.get(
+            "https://api.pexels.com/v1/search",
+            headers={"Authorization": pexels_key},
+            params={"query": query, "per_page": 1, "orientation": orientation},
+            timeout=10
+        )
+        data = r.json()
+        photos = data.get("photos", [])
+        if photos:
+            return photos[0]["src"]["large"]
+    except Exception as e:
+        print(f"    ⚠️  Pexels error for '{query}': {e}")
+    return None
+
+
 def research_section(section):
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+    pexels_key = os.environ.get("PEXELS_API_KEY", "")
     print(f"  → {section['emoji']} {section['label']}...")
     try:
         response = client.messages.create(
@@ -105,6 +120,13 @@ def research_section(section):
                     result = json.loads(text[start:end])
                     if result.get("items"):
                         result["items"] = result["items"][:5]
+                        # Fetch Pexels images for each item
+                        if pexels_key:
+                            for i, item in enumerate(result["items"]):
+                                query = item.get("image_query", item.get("tag", "audio technology"))
+                                orientation = "landscape" if i == 0 else "square"
+                                img_url = fetch_pexels_image(query, pexels_key, orientation)
+                                item["image_url"] = img_url or ""
                         print(f"    ✓ {section['label']}: {len(result['items'])} items")
                         return section["key"], result
                 except json.JSONDecodeError:
@@ -144,20 +166,19 @@ def generate_signals(client, results, sections):
             all_news.append(f"[{section['label']}] {item.get('headline', '')}: {item.get('body', '')}")
 
     news_summary = "\n".join(all_news[:20])
+    prompt = f"""You are a senior strategy advisor to Urbanista.
 
-    prompt = f"""You are a senior strategy advisor to Urbanista, a premium audio brand.
-
-Here is everything you need to know about Urbanista:
+Urbanista context:
 {URBANISTA_CONTEXT}
 
-Here is this week's market intelligence:
+This week's intelligence:
 {news_summary}
 
-Identify exactly 3 strategic signals that Urbanista's leadership team should act on or monitor this week.
-Each signal must be specific to Urbanista, tied to this week's news, and actionable.
+Identify exactly 3 strategic signals Urbanista's leadership should act on this week.
+Each must be specific to Urbanista, tied to this week's news, and actionable.
 
-Return ONLY this JSON with no other text:
-{{"signals":[{{"headline":"signal headline","body":"Context and what Urbanista should do. 2 sentences.","urgency":"High|Medium|Watch"}},{{"headline":"signal headline","body":"2 sentences.","urgency":"High|Medium|Watch"}},{{"headline":"signal headline","body":"2 sentences.","urgency":"High|Medium|Watch"}}]}}"""
+Return ONLY this JSON:
+{{"signals":[{{"headline":"signal","body":"2 sentences.","urgency":"High|Medium|Watch"}},{{"headline":"signal","body":"2 sentences.","urgency":"High|Medium|Watch"}},{{"headline":"signal","body":"2 sentences.","urgency":"High|Medium|Watch"}}]}}"""
 
     try:
         response = client.messages.create(
@@ -183,11 +204,8 @@ Return ONLY this JSON with no other text:
 
 
 def build_card(results, intro, signals, date_str, edition, sections):
-    def image_block(url):
-        if url and url.startswith("http"):
-            return [{"type": "Image", "url": url, "size": "Stretch",
-                     "altText": "Article image", "spacing": "Small"}]
-        return []
+    urgency_color = {"High": "Attention", "Medium": "Warning", "Watch": "Accent"}
+    urgency_emoji = {"High": "🔴", "Medium": "🟡", "Watch": "🔵"}
 
     body = [
         {"type": "TextBlock", "text": f"URBANISTA MONDAY BRIEF · {edition}",
@@ -211,31 +229,31 @@ def build_card(results, intro, signals, date_str, edition, sections):
                          "isSubtle": True, "size": "Small"})
             continue
 
-        # Lead item with image
+        # Lead item — full width image
         lead = items[0]
-        body += image_block(lead.get("image_url", ""))
+        if lead.get("image_url", "").startswith("http"):
+            body.append({"type": "Image", "url": lead["image_url"],
+                         "size": "Stretch", "altText": lead.get("headline", ""),
+                         "spacing": "Small"})
         body.append({"type": "TextBlock",
                      "text": f"**{lead.get('headline', '')}**",
                      "wrap": True, "spacing": "Small"})
-        body.append({"type": "TextBlock",
-                     "text": lead.get("body", ""),
+        body.append({"type": "TextBlock", "text": lead.get("body", ""),
                      "wrap": True, "isSubtle": True, "size": "Small", "spacing": "Small"})
-        date_item = lead.get("date", "")
         footer = f"_{lead.get('tag', '')}_"
-        if date_item:
-            footer += f" · {date_item}"
+        if lead.get("date"):
+            footer += f" · {lead['date']}"
         footer += f" · [{lead.get('source', 'Source')}]({lead.get('url', '#')})"
         body.append({"type": "TextBlock", "text": footer,
                      "wrap": True, "size": "ExtraSmall",
                      "color": "Accent", "spacing": "Small"})
 
-        # Remaining items — smaller, thumbnail image in column
+        # Secondary items — thumbnail + text in columns
         for item in items[1:]:
             img_url = item.get("image_url", "")
             if img_url and img_url.startswith("http"):
-                col_set = {
-                    "type": "ColumnSet",
-                    "spacing": "Medium",
+                body.append({
+                    "type": "ColumnSet", "spacing": "Medium",
                     "columns": [
                         {
                             "type": "Column", "width": "80px",
@@ -259,14 +277,12 @@ def build_card(results, intro, signals, date_str, edition, sections):
                             ]
                         }
                     ]
-                }
-                body.append(col_set)
+                })
             else:
                 body.append({"type": "TextBlock",
                              "text": f"**{item.get('headline', '')}**",
                              "wrap": True, "spacing": "Medium"})
-                body.append({"type": "TextBlock",
-                             "text": item.get("body", ""),
+                body.append({"type": "TextBlock", "text": item.get("body", ""),
                              "wrap": True, "isSubtle": True,
                              "size": "Small", "spacing": "Small"})
                 footer = f"_{item.get('tag', '')}_"
@@ -277,10 +293,8 @@ def build_card(results, intro, signals, date_str, edition, sections):
                              "wrap": True, "size": "ExtraSmall",
                              "color": "Accent", "spacing": "Small"})
 
-    # Signals section
+    # Signals
     if signals:
-        urgency_color = {"High": "Attention", "Medium": "Warning", "Watch": "Accent"}
-        urgency_emoji = {"High": "🔴", "Medium": "🟡", "Watch": "🔵"}
         body.append({
             "type": "TextBlock",
             "text": "🧠 THIS WEEK'S SIGNALS — FOR URBANISTA",
@@ -300,17 +314,14 @@ def build_card(results, intro, signals, date_str, edition, sections):
                 "wrap": True, "spacing": "Medium",
                 "color": urgency_color.get(urgency, "Default")
             })
-            body.append({
-                "type": "TextBlock",
-                "text": signal.get("body", ""),
-                "wrap": True, "isSubtle": True, "size": "Small", "spacing": "Small"
-            })
-            body.append({
-                "type": "TextBlock",
-                "text": f"_{urgency} priority_",
-                "wrap": True, "size": "ExtraSmall",
-                "color": urgency_color.get(urgency, "Default"), "spacing": "Small"
-            })
+            body.append({"type": "TextBlock", "text": signal.get("body", ""),
+                         "wrap": True, "isSubtle": True,
+                         "size": "Small", "spacing": "Small"})
+            body.append({"type": "TextBlock",
+                         "text": f"_{urgency} priority_",
+                         "wrap": True, "size": "ExtraSmall",
+                         "color": urgency_color.get(urgency, "Default"),
+                         "spacing": "Small"})
 
     body.append({"type": "TextBlock",
                  "text": "Urbanista Monday Brief · Every Monday 08:00 CET · 100% AI researched · Past 7 days",
@@ -334,6 +345,8 @@ def main():
 
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print("Error: ANTHROPIC_API_KEY not set."); sys.exit(1)
+    if not os.environ.get("PEXELS_API_KEY"):
+        print("⚠️  PEXELS_API_KEY not set — images will be skipped.")
     if not os.environ.get("TEAMS_WEBHOOK_URL") and not dry_run:
         print("Error: TEAMS_WEBHOOK_URL not set."); sys.exit(1)
 
@@ -370,11 +383,12 @@ def main():
             items = results[section["key"]].get("items", [])
             print(f"\n{section['emoji']} {section['label']} ({len(items)} items)")
             for item in items:
-                has_image = "🖼️" if item.get("image_url", "").startswith("http") else "❌"
-                print(f"  {has_image} [{item.get('date','')}] {item.get('headline','')}")
+                has_img = "🖼️" if item.get("image_url", "").startswith("http") else "❌ no image"
+                print(f"  {has_img} [{item.get('date','')}] {item.get('headline','')}")
         print("\n🧠 Signals:")
         for s in signals:
-            print(f"  {'🔴' if s.get('urgency')=='High' else '🟡' if s.get('urgency')=='Medium' else '🔵'} {s.get('headline','')}")
+            e = "🔴" if s.get("urgency") == "High" else "🟡" if s.get("urgency") == "Medium" else "🔵"
+            print(f"  {e} {s.get('headline','')}")
     else:
         r = requests.post(os.environ["TEAMS_WEBHOOK_URL"], json=card,
                           headers={"Content-Type": "application/json"}, timeout=30)
